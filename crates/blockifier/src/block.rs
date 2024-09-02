@@ -1,5 +1,6 @@
 use std::num::NonZeroU128;
 
+use serde::Serialize;
 use starknet_api::block::{BlockHash, BlockNumber, BlockTimestamp};
 use starknet_api::core::ContractAddress;
 use starknet_api::hash::StarkFelt;
@@ -16,7 +17,7 @@ use crate::versioned_constants::VersionedConstants;
 #[path = "block_test.rs"]
 pub mod block_test;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BlockInfo {
     pub block_number: BlockNumber,
     pub block_timestamp: BlockTimestamp,
@@ -27,7 +28,7 @@ pub struct BlockInfo {
     pub use_kzg_da: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GasPrices {
     pub eth_l1_gas_price: NonZeroU128,       // In wei.
     pub strk_l1_gas_price: NonZeroU128,      // In fri.

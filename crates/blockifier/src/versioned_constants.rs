@@ -8,7 +8,8 @@ use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use indexmap::{IndexMap, IndexSet};
 use once_cell::sync::Lazy;
 use serde::de::Error as DeserializationError;
-use serde::{Deserialize, Deserializer};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Number, Value};
 use strum::IntoEnumIterator;
 use thiserror::Error;
@@ -32,7 +33,7 @@ static DEFAULT_CONSTANTS: Lazy<VersionedConstants> = Lazy::new(|| {
 /// Contains constants for the Blockifier that may vary between versions.
 /// Additional constants in the JSON file, not used by Blockifier but included for transparency, are
 /// automatically ignored during deserialization.
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct VersionedConstants {
     // Limits.
     #[serde(default = "EventLimits::max")]
@@ -150,7 +151,7 @@ impl TryFrom<&Path> for VersionedConstants {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct L2ResourceGasCosts {
     // TODO(barak, 18/03/2024): Once we start charging per byte change to milligas_per_data_byte,
     // divide the value by 32 in the JSON file.
@@ -162,7 +163,7 @@ pub struct L2ResourceGasCosts {
     pub milligas_per_code_byte: u128,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EventLimits {
     pub max_data_length: usize,
     pub max_keys_length: usize,
@@ -179,7 +180,7 @@ impl EventLimits {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 // Serde trick for adding validations via a customr deserializer, without forgoing the derive.
 // See: https://github.com/serde-rs/serde/issues/1220.
 #[serde(remote = "Self")]
@@ -194,6 +195,18 @@ pub struct OsResources {
     // For each transaction the OS uses a constant amount of VM resources, and an
     // additional variable amount that depends on the calldata length.
     execute_txs_inner: HashMap<TransactionType, ResourcesParams>,
+}
+
+impl Serialize for OsResources {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("OsResources", 2)?;
+        state.serialize_field("execute_syscalls", &self.execute_syscalls)?;
+        state.serialize_field("execute_txs_inner", &self.execute_txs_inner)?;
+        state.end()
+    }
 }
 
 impl OsResources {
@@ -323,7 +336,7 @@ impl<'de> Deserialize<'de> for OsResources {
 // testing very difficult.
 // TODO: consider encoding the * and + operations inside the json file, instead of hardcoded below
 // in the `try_from`.
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(try_from = "OsConstantsRawJson")]
 pub struct OSConstants {
     validate_rounding_consts: ValidateRoundingConsts,
@@ -492,7 +505,7 @@ pub enum OsConstantsSerdeError {
     ValidationError(String),
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(try_from = "ResourceParamsRaw")]
 pub struct ResourcesParams {
     pub constant: ExecutionResources,
@@ -534,7 +547,7 @@ impl TryFrom<ResourceParamsRaw> for ResourcesParams {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ValidateRoundingConsts {
     // Flooring factor for block number in validate mode.
     pub validate_block_number_rounding: u64,

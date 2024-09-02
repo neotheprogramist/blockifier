@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use cached::{Cached, SizedCache};
 use derive_more::IntoIterator;
 use indexmap::IndexMap;
+use serde::Serialize;
 use starknet_api::core::{ClassHash, CompiledClassHash, ContractAddress, Nonce};
 use starknet_api::hash::StarkFelt;
 use starknet_api::state::StorageKey;
@@ -24,13 +25,14 @@ pub type ContractClassMapping = HashMap<ClassHash, ContractClass>;
 ///
 /// Writer functionality is builtin, whereas Reader functionality is injected through
 /// initialization.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CachedState<S: StateReader> {
     pub state: S,
     // Invariant: read/write access is managed by CachedState.
     cache: StateCache,
     class_hash_to_class: ContractClassMapping,
     // Invariant: managed by CachedState.
+    #[serde(skip_serializing)]
     global_class_hash_to_class: GlobalContractCache,
     /// A map from class hash to the set of PC values that were visited in the class.
     pub visited_pcs: HashMap<ClassHash, HashSet<usize>>,
@@ -368,7 +370,7 @@ impl From<StorageView> for IndexMap<ContractAddress, IndexMap<StorageKey, StarkF
 /// The tracked changes are needed for block state commitment.
 
 // Invariant: keys cannot be deleted from fields (only used internally by the cached state).
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub struct StateCache {
     // Reader's cached information; initial values, read before any write operation (per cell).
     nonce_initial_values: HashMap<ContractAddress, Nonce>,
@@ -799,6 +801,7 @@ pub struct StateChangesCount {
 }
 
 // Note: `ContractClassLRUCache` key-value types must align with `ContractClassMapping`.
+
 type ContractClassLRUCache = SizedCache<ClassHash, ContractClass>;
 type LockedContractClassCache<'a> = MutexGuard<'a, ContractClassLRUCache>;
 #[derive(Debug, Clone)]

@@ -16,7 +16,7 @@ use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::vm::runners::builtin_runner::{HASH_BUILTIN_NAME, POSEIDON_BUILTIN_NAME};
 use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use serde::de::Error as DeserializationError;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, de::Deserializer, Serialize};
 use starknet_api::core::EntryPointSelector;
 use starknet_api::deprecated_contract_class::{
     ContractClass as DeprecatedContractClass, EntryPoint, EntryPointOffset, EntryPointType,
@@ -35,10 +35,31 @@ use crate::execution::execution_utils::{felt_to_stark_felt, sn_api_to_cairo_vm_p
 
 pub type ContractClassResult<T> = Result<T, ContractClassError>;
 
-#[derive(Clone, Debug, Eq, PartialEq, derive_more::From, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, derive_more::From, Serialize, Deserialize)]
 pub enum ContractClass {
     V0(ContractClassV0),
     V1(ContractClassV1),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, derive_more::From, Serialize, Deserialize)]
+pub enum ContractClassHelper {
+    V0(ContractClassV0Helper),
+    V1(ContractClassV1),
+}
+
+
+impl From<ContractClassHelper> for ContractClass {
+    fn from(helper: ContractClassHelper) -> Self {
+        match helper {
+            ContractClassHelper::V0(helper_v0) => {
+                ContractClass::V0(ContractClassV0(Arc::new(ContractClassV0Inner {
+                    program: helper_v0.0.program.clone(),
+                    entry_points_by_type: helper_v0.0.entry_points_by_type.clone(),
+                })))
+            },
+            ContractClassHelper::V1(v1) => ContractClass::V1(v1),
+        }
+    }
 }
 
 impl ContractClass {
@@ -66,7 +87,13 @@ impl ContractClass {
 
 // V0.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContractClassV0Helper(pub Arc<ContractClassV0InnerHelper>);
+
+// V0.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ContractClassV0(pub Arc<ContractClassV0Inner>);
+
+
 impl Deref for ContractClassV0 {
     type Target = ContractClassV0Inner;
 
@@ -117,8 +144,15 @@ impl ContractClassV0 {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContractClassV0InnerHelper {
+    pub program: Program,
+    pub entry_points_by_type: HashMap<EntryPointType, Vec<EntryPoint>>,
+}
+
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ContractClassV0Inner {
-    #[serde(deserialize_with = "deserialize_program", skip_serializing)]
+    #[serde(deserialize_with = "deserialize_program")]
     pub program: Program,
     pub entry_points_by_type: HashMap<EntryPointType, Vec<EntryPoint>>,
 }
@@ -135,7 +169,7 @@ impl TryFrom<DeprecatedContractClass> for ContractClassV0 {
 }
 
 // V1.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ContractClassV1(pub Arc<ContractClassV1Inner>);
 impl Deref for ContractClassV1 {
     type Target = ContractClassV1Inner;
@@ -265,16 +299,15 @@ fn poseidon_hash_many_cost(data_length: usize) -> ExecutionResources {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ContractClassV1Inner {
-    #[serde(skip_serializing)]
     pub program: Program,
     pub entry_points_by_type: HashMap<EntryPointType, Vec<EntryPointV1>>,
     pub hints: HashMap<String, Hint>,
     bytecode_segment_lengths: NestedIntList,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct EntryPointV1 {
     pub selector: EntryPointSelector,
     pub offset: EntryPointOffset,

@@ -40,6 +40,7 @@ phf.workspace = true
 rstest = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["arbitrary_precision"] }
+serde_with = "3.9.0" 
 sha3.workspace = true
 starknet-crypto.workspace = true
 starknet_api = { workspace = true, features = ["testing"] }
